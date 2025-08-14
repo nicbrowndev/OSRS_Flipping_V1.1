@@ -3,11 +3,10 @@ import json
 from typing import Optional
 import math
 
-headers = {"User-Agent": "Old School GE margin checker test - @Vegimit on Discord"}
-tax = 0.98
+headers = {"User-Agent": "Old School GE margin checker - @Vegimit on Discord"}
 
 class RsItem:
-    def __init__(self, name=None, item_id=None, buy_limit=None, price_high=None, price_low=None, volume_high_price=None, volume_low_price=None, high_alch=None, members=None, margin=None, roi=None, daily_profit=None, cost_to_buy=None):
+    def __init__(self, name=None, item_id=None, buy_limit=None, price_high=None, price_low=None, volume_high_price=None, volume_low_price=None, real_volume=None, high_alch=None, members=None, roi=None, daily_profit=None, cost_to_buy=None , total_sell_value=None):
 
         self.name = name
         self.item_id = item_id
@@ -16,12 +15,13 @@ class RsItem:
         self.price_low = price_low
         self.volume_high_price = volume_high_price
         self.volume_low_price = volume_low_price
-        self.high_alch = high_alch
-        self.members = members
-        self.margin = margin
+        self.real_volume = real_volume,
+        self.high_alch = high_alch,
+        self.members = members,
         self.roi = roi
         self.daily_profit = daily_profit
-        self.cost_to_buy = cost_to_buy
+        self.cost_to_buy = cost_to_buy,
+        self.total_sell_value = total_sell_value
 
     def to_dict(self):
         return{
@@ -32,15 +32,14 @@ class RsItem:
             "price_low": self.price_low,
             "volume_high_price": self.volume_high_price,
             "volume_low_price": self.volume_low_price,
+            "real_volume": self.real_volume,
             "high_alch": self.high_alch,
             "members": self.members,
-            "margin": self.margin,
             "roi": self.roi,
             "daily_profit": self.daily_profit,
-            "cost_to_buy": self.cost_to_buy
+            "cost_to_buy": self.cost_to_buy,
+            "total_sell_value": self.total_sell_value
         }
-
-
 item_data = []
 top10 = []
 
@@ -75,42 +74,23 @@ if response.status_code == 200:
                 i = i + 1
 
     for RsItem in item_data:
-        RsItem.margin = (RsItem.price_high or 1) - (RsItem.price_low or 1) #gets price margin
-        # if there's more supply than buy limit
-        if (RsItem.volume_low_price or 1) > (RsItem.buy_limit or 300000):
-            # cost is capped by buy limit
-            # if demand limits profit
-            if(RsItem.volume_high_price or 1) < (RsItem.volume_low_price or 1):
-                # profit is capped by demand
-                RsItem.cost_to_buy = (RsItem.price_low or 1) * (RsItem.volume_high_price or 1)
-                RsItem.daily_profit = RsItem.margin * (RsItem.volume_high_price or 1)
-            # profit is not capped by demand
-            else:
-                RsItem.cost_to_buy = (RsItem.price_low or 1) * (RsItem.buy_limit or 300000)
-                RsItem.daily_profit = RsItem.margin * (RsItem.buy_limit or 300000)
 
-        # if there's less supply than buy limit
-        else:
-            # cost is capped by supply
-            # if demand limits profit
-            if (RsItem.volume_high_price or 1) < (RsItem.volume_low_price or 1):
-                # profit is capped by demand
-                RsItem.cost_to_buy = (RsItem.price_low or 1) * (RsItem.volume_high_price or 1)
-                RsItem.daily_profit = RsItem.margin * (RsItem.volume_high_price or 1)
-                # profit is not capped by demand
-            else:
-                RsItem.cost_to_buy = (RsItem.price_low or 1) * (RsItem.volume_low_price or 1)
-                RsItem.daily_profit = RsItem.margin * (RsItem.volume_low_price or 1)
+        RsItem.real_volume = min((RsItem.volume_high_price or 1), (RsItem.volume_low_price or 1), (RsItem.buy_limit or 300000))
+        RsItem.cost_to_buy = RsItem.real_volume * (RsItem.price_low or 1)
+        RsItem.total_sell_value = RsItem.real_volume * (RsItem.price_high or 1)
 
         # if item will be taxed
         if (RsItem.price_high or 1) >= 50:
-            RsItem.daily_profit = RsItem.daily_profit * tax
-
-        # get return on investment as %
-        RsItem.roi = RsItem.daily_profit / RsItem.cost_to_buy * 100
+            RsItem.daily_profit = RsItem.total_sell_value - (math.floor(RsItem.price_high / 50) * RsItem.real_volume) - RsItem.cost_to_buy
+            # get return on investment as %
+            RsItem.roi = (RsItem.daily_profit + RsItem.cost_to_buy) / RsItem.cost_to_buy * 100
+        else:
+            RsItem.daily_profit = RsItem.total_sell_value - RsItem.cost_to_buy
+            # get return on investment as %
+            RsItem.roi = (RsItem.daily_profit + RsItem.cost_to_buy) / RsItem.cost_to_buy * 100
 
         # if item is affordable and has enough supply
-        if (RsItem.cost_to_buy < 1000000) & (RsItem.volume_low_price > 3) & (RsItem.volume_high_price > 3):
+        if (RsItem.cost_to_buy < 10000000) & RsItem.volume_low_price > 0: #& (RsItem.volume_low_price > 3) & (RsItem.volume_high_price > 3)
             # if top10 is empty, automatically include item
             if range(len(top10)) == 0:
                 top10.append(RsItem)
@@ -122,19 +102,15 @@ if response.status_code == 200:
                         insertValue = insertValue + 1
                     else:
                         break
-                if (insertValue > 0 or len(top10)) < 10:
+                if (insertValue > 0 or len(top10)) < 20:
                     top10.insert(insertValue, RsItem)
-                if len(top10) > 10:
+                if len(top10) > 20:
                     top10.pop(0)
 
-
-
 for RsItem in top10:
-    print(RsItem.name,"\n","Buy Price: ",RsItem.price_low,"\n","Sell Price: ",RsItem.price_high,"\n","Low Price Volume (5min): ",RsItem.volume_low_price,"\n","High Price Volume (5min)",RsItem.volume_high_price,"\n","Daily Profit: ",RsItem.daily_profit,"\n","ROI: ",RsItem.roi, "%")
+    print(RsItem.name,"\n","Buy Price: ",RsItem.price_low,"\n","Sell Price: ",RsItem.price_high,"\n","Low Price Volume (5min): ",RsItem.volume_low_price,"\n","High Price Volume (5min)",RsItem.volume_high_price,"\n","Daily Profit: ",RsItem.daily_profit,"\n","ROI: ",RsItem.roi, "%","\n","total sell value ",RsItem.total_sell_value,"\n","Cost to Buy: ",RsItem.cost_to_buy,"\n","Buy Limit",RsItem.buy_limit )
 
 if input("Press Enter to exit"):
     exit()
-
-
-
-
+#I'm lazy and am storing the bash script for exporting as an exe here
+#pyinstaller OSRS_Flipping_V1.1.py --onefile --upx-dir=F:\DevTools\upx-5.0.2-win64
