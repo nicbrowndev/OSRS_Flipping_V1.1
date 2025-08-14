@@ -108,7 +108,7 @@ if response.status_code == 200:
                     top10.pop(0)
 
 for RsItem in top10:
-    print(RsItem.name,"\n","Buy Price: ",RsItem.price_low,"\n","Sell Price: ",RsItem.price_high,"\n","Low Price Volume (5min): ",RsItem.volume_low_price,"\n","High Price Volume (5min)",RsItem.volume_high_price,"\n","Daily Profit: ",RsItem.daily_profit,"\n","ROI: ",RsItem.roi, "%","\n","total sell value ",RsItem.total_sell_value,"\n","Cost to Buy: ",RsItem.cost_to_buy,"\n","Buy Limit",RsItem.buy_limit )
+    print(RsItem.name,"\n","Buy Price: ",RsItem.price_low,"\n","Sell Price: ",RsItem.price_high,"\n","Low Price Volume (5min): ",RsItem.volume_low_price,"\n","High Price Volume (5min)",RsItem.volume_high_price,"\n","Daily Profit: ",RsItem.daily_profit,"\n","ROI: ",RsItem.roi, "%","\n","total sell value ")
 
 if input("Press Enter to exit"):
     exit()
