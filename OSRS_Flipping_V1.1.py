@@ -6,7 +6,7 @@ import math
 headers = {"User-Agent": "Old School GE margin checker - @Vegimit on Discord"}
 
 class RsItem:
-    def __init__(self, name=None, item_id=None, buy_limit=None, price_high=None, price_low=None, volume_high_price=None, volume_low_price=None, real_volume=None, high_alch=None, members=None, roi=None, daily_profit=None, cost_to_buy=None , total_sell_value=None):
+    def __init__(self, name=None, item_id=None, buy_limit=None, price_high=None, price_low=None, volume_high_price=None, volume_low_price=None, real_volume=None, high_alch=None, members=None, roi=None, expected_profit=None, cost_to_buy=None , total_sell_value=None):
 
         self.name = name
         self.item_id = item_id
@@ -19,7 +19,7 @@ class RsItem:
         self.high_alch = high_alch,
         self.members = members,
         self.roi = roi
-        self.daily_profit = daily_profit
+        self.expected_profit = expected_profit
         self.cost_to_buy = cost_to_buy,
         self.total_sell_value = total_sell_value
 
@@ -36,7 +36,7 @@ class RsItem:
             "high_alch": self.high_alch,
             "members": self.members,
             "roi": self.roi,
-            "daily_profit": self.daily_profit,
+            "expected_profit": self.expected_profit,
             "cost_to_buy": self.cost_to_buy,
             "total_sell_value": self.total_sell_value
         }
@@ -72,25 +72,23 @@ if response.status_code == 200:
                     item_data[i].high_alch = item.get("highalch")
                     item_data[i].members = item.get("members")
                 i = i + 1
-
+                
     for RsItem in item_data:
-
+        # profit is limited by whichever is lowest among the trade volumes and buy limit
+        # checking which is lower
         RsItem.real_volume = min((RsItem.volume_high_price or 1), (RsItem.volume_low_price or 1), (RsItem.buy_limit or 300000))
         RsItem.cost_to_buy = RsItem.real_volume * (RsItem.price_low or 1)
         RsItem.total_sell_value = RsItem.real_volume * (RsItem.price_high or 1)
 
         # if item will be taxed
         if (RsItem.price_high or 1) >= 50:
-            RsItem.daily_profit = RsItem.total_sell_value - (math.floor(RsItem.price_high / 50) * RsItem.real_volume) - RsItem.cost_to_buy
-            # get return on investment as %
-            RsItem.roi = (RsItem.daily_profit + RsItem.cost_to_buy) / RsItem.cost_to_buy * 100
+            RsItem.expected = RsItem.total_sell_value - (math.floor(RsItem.price_high / 50) * RsItem.real_volume) - RsItem.cost_to_buy
         else:
-            RsItem.daily_profit = RsItem.total_sell_value - RsItem.cost_to_buy
-            # get return on investment as %
-            RsItem.roi = (RsItem.daily_profit + RsItem.cost_to_buy) / RsItem.cost_to_buy * 100
-
+            RsItem.expected = RsItem.total_sell_value - RsItem.cost_to_buy
+        # get return on investment as %
+        RsItem.roi = RsItem.expected / RsItem.cost_to_buy * 100
         # if item is affordable and has enough supply
-        if (RsItem.cost_to_buy < 10000000) & RsItem.volume_low_price > 0: #& (RsItem.volume_low_price > 3) & (RsItem.volume_high_price > 3)
+        if (RsItem.cost_to_buy < 5000000) & RsItem.volume_low_price > 0: #& (RsItem.volume_low_price > 3) & (RsItem.volume_high_price > 3)
             # if top10 is empty, automatically include item
             if range(len(top10)) == 0:
                 top10.append(RsItem)
@@ -98,7 +96,7 @@ if response.status_code == 200:
             else:
                 insertValue = 0
                 for i in range(len(top10)):
-                    if top10[i].daily_profit < RsItem.daily_profit:
+                    if top10[i].expected < RsItem.expected:
                         insertValue = insertValue + 1
                     else:
                         break
@@ -108,7 +106,7 @@ if response.status_code == 200:
                     top10.pop(0)
 
 for RsItem in top10:
-    print(RsItem.name,"\n","Buy Price: ",RsItem.price_low,"\n","Sell Price: ",RsItem.price_high,"\n","Low Price Volume (5min): ",RsItem.volume_low_price,"\n","High Price Volume (5min)",RsItem.volume_high_price,"\n","Daily Profit: ",RsItem.daily_profit,"\n","ROI: ",RsItem.roi, "%","\n")
+    print(RsItem.name,"\n","Buy Price: ",RsItem.price_low,"\n","Sell Price: ",RsItem.price_high,"\n","Low Price Volume (5min): ",RsItem.volume_low_price,"\n","High Price Volume (5min)",RsItem.volume_high_price,"\n","Daily Profit: ",RsItem.expected_profit,"\n","ROI: ",RsItem.roi, "%","\n")
 
 if input("Press Enter to exit"):
     exit()
